@@ -1,0 +1,11 @@
+{
+  "dependencies": [
+    "boost",
+    "crow",
+    "fmt",
+    "gdal",
+    "geos",
+    "sqlite3",
+    "rapidjson"
+  ]
+}
