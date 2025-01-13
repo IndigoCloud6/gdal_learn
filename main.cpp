@@ -23,7 +23,11 @@ static void ReportHiearchicalLayers(CPLJSONObject &oRoot,
         OGRLayer *poLayer = group->OpenVectorLayer(osVectorLayerName);
         if (poLayer) {
             CPLJSONObject oLayer;
-            oLayerNames.Add(poLayer->GetName());
+            oLayer.Add("name", poLayer->GetName());
+            oLayer.Add("type", OGRToOGCGeomType(poLayer->GetGeomType()));
+            oLayer.Add("alias", poLayer->GetMetadataItem("ALIAS_NAME"));
+            oLayer.Add("count", poLayer->GetFeatureCount());
+            oLayerNames.Add(oLayer);
         }
     }
 
@@ -80,11 +84,11 @@ std::string GetLayerInfo(const std::string &gdbPath) {
                                 poRootGroup.get(), std::string(),
                                 true);
     }
-  
+
     std::cout << "Closing dataset..." << std::endl;
     GDALClose(poDS);
     std::cout << "Dataset closed successfully." << std::endl;
-  
+
     return oRoot.ToString();
 
     /*
