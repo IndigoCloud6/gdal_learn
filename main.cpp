@@ -80,8 +80,14 @@ std::string GetLayerInfo(const std::string &gdbPath) {
                                 poRootGroup.get(), std::string(),
                                 true);
     }
-
+  
+    std::cout << "Closing dataset..." << std::endl;
+    GDALClose(poDS);
+    std::cout << "Dataset closed successfully." << std::endl;
+  
     return oRoot.ToString();
+
+    /*
     for (int i = 0; i < poDS->GetLayerCount(); ++i) {
         OGRLayer *poLayer = poDS->GetLayer(i);
         if (poLayer == nullptr) {
@@ -95,7 +101,7 @@ std::string GetLayerInfo(const std::string &gdbPath) {
                 std::cout << "Metadata: " << metadata[i] << std::endl;
             }
         }
-        /*
+     
         OGRFeature *feature;
         while ((feature = poLayer->GetNextFeature()) != nullptr) {
             OGRGeometry *ogrGeom = feature->GetGeometryRef();
@@ -107,15 +113,9 @@ std::string GetLayerInfo(const std::string &gdbPath) {
             //std::cout << length << std::endl;
             CPLFree(wkt);
             OGRFeature::DestroyFeature(feature);
-        }*/
+        }
     }
-
-    // 关闭数据集前的日志输出
-    std::cout << "Closing dataset..." << std::endl;
-    GDALClose(poDS);
-    std::cout << "Dataset closed successfully." << std::endl;
-
-    return "0";
+    */
 }
 
 int main() {
