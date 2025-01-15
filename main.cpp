@@ -27,6 +27,10 @@ static void ReportHiearchicalLayers(CPLJSONObject &oRoot,
             oLayer.Add("type", OGRToOGCGeomType(poLayer->GetGeomType()));
             oLayer.Add("alias", poLayer->GetMetadataItem("ALIAS_NAME"));
             oLayer.Add("count", poLayer->GetFeatureCount());
+            OGRSpatialReference *SpatialRef = poLayer->GetSpatialRef();
+            if (SpatialRef) {
+                oLayer.Add("authoritycode", SpatialRef->GetAuthorityCode(nullptr));
+            }
             oLayerNames.Add(oLayer);
         }
     }
@@ -39,7 +43,6 @@ static void ReportHiearchicalLayers(CPLJSONObject &oRoot,
         auto poSubGroup = group->OpenGroup(osSubGroupName);
         if (poSubGroup) {
             CPLJSONObject oGroup;
-
             oGroupArray.Add(oGroup);
             oGroup.Set("name", osSubGroupName);
             ReportHiearchicalLayers(oGroup, poSubGroup.get(),
@@ -51,6 +54,8 @@ static void ReportHiearchicalLayers(CPLJSONObject &oRoot,
 
 std::string GetLayerInfo(const std::string &gdbPath) {
     GDALAllRegister();
+
+    //设置环境变量
     const char *projLibPath = "F:/github/vcpkg_dev/packages/proj_x64-windows/share/proj";
     const char *gdalData = "F:/github/vcpkg_dev/packages/gdal_x64-windows/share/gdal";
     CPLSetConfigOption("PROJ_LIB", projLibPath);
@@ -63,12 +68,50 @@ std::string GetLayerInfo(const std::string &gdbPath) {
     auto factory = geos::geom::GeometryFactory::create();
     geos::io::WKTReader wktReader(factory.get());
 
-    char **papszAllowedDrivers = nullptr;
-    papszAllowedDrivers = CSLAddString(papszAllowedDrivers, "OpenFileGDB");
+    //char **papszAllowedDrivers = nullptr;
+    //papszAllowedDrivers = CSLAddString(papszAllowedDrivers, "OpenFileGDB");
 
-    GDALDataset *poDS = GDALDataset::Open(gdbPath.c_str(), GDAL_OF_VECTOR, papszAllowedDrivers, nullptr, nullptr);
+    GDALDataset *poDS = GDALDataset::Open(gdbPath.c_str(), GDAL_OF_VECTOR, nullptr, nullptr, nullptr);
     if (poDS == nullptr) {
         return std::string("Failed to open GDB: ") + CPLGetLastErrorMsg();
+    }
+
+    OGRStyleTable *styleTable = poDS->GetStyleTable();
+    if (styleTable != nullptr) {
+        const char *style = styleTable->Find("PolyStyle0000");
+        if (style != nullptr) {
+            std::cout << "Metadata: " << style << std::endl;
+        }
+    }
+
+    for (int i = 0; i < poDS->GetLayerCount(); ++i) {
+        OGRLayer *poLayer = poDS->GetLayer(i);
+        char **metadata = poLayer->GetMetadata("");
+        if (metadata != nullptr) {
+            for (int i = 0; metadata[i] != nullptr; ++i) {
+                std::cout << "Metadata: " << metadata[i] << std::endl;
+            }
+        }
+
+        OGRFeature *feature;
+        while ((feature = poLayer->GetNextFeature()) != nullptr) {
+            const char *style = feature->GetStyleString();
+            OGRGeometry *ogrGeom = feature->GetGeometryRef();
+            // 转换 OGRGeometry 为 WKT
+            char *wkt = nullptr;
+            ogrGeom->exportToWkt(&wkt);
+            auto geom = wktReader.read(wkt);
+            std::cout << wkt << std::endl;
+            CPLFree(wkt);
+
+            for (int j = 0; j < feature->GetFieldCount(); ++j) {
+                OGRFieldDefn *fieldDefn = feature->GetFieldDefnRef(j);
+                std::cout << "    Field " << fieldDefn->GetNameRef() << ": " << feature->GetFieldAsString(j) <<
+                        std::endl;
+            }
+
+            OGRFeature::DestroyFeature(feature);
+        }
     }
     //图层目录
     CPLJSONObject oRoot;
@@ -90,36 +133,6 @@ std::string GetLayerInfo(const std::string &gdbPath) {
     std::cout << "Dataset closed successfully." << std::endl;
 
     return oRoot.ToString();
-
-    /*
-    for (int i = 0; i < poDS->GetLayerCount(); ++i) {
-        OGRLayer *poLayer = poDS->GetLayer(i);
-        if (poLayer == nullptr) {
-            GDALClose(poDS);
-            return "Layer 'FZJZSSM' not found.";
-        }
-
-        char **metadata = poLayer->GetMetadata("");
-        if (metadata != nullptr) {
-            for (int i = 0; metadata[i] != nullptr; ++i) {
-                std::cout << "Metadata: " << metadata[i] << std::endl;
-            }
-        }
-     
-        OGRFeature *feature;
-        while ((feature = poLayer->GetNextFeature()) != nullptr) {
-            OGRGeometry *ogrGeom = feature->GetGeometryRef();
-            // 转换 OGRGeometry 为 WKT
-            char *wkt = nullptr;
-            ogrGeom->exportToWkt(&wkt);
-            auto geom = wktReader.read(wkt);
-            double length = geom->getLength();
-            //std::cout << length << std::endl;
-            CPLFree(wkt);
-            OGRFeature::DestroyFeature(feature);
-        }
-    }
-    */
 }
 
 int main() {
@@ -132,10 +145,8 @@ int main() {
         if (!body || !body.has("gdb_path")) {
             return crow::response(400, "Invalid request. Please provide 'gdb_path' in the JSON body.");
         }
-
         // Get the GDB path from the request
         std::string gdbPath = body["gdb_path"].s();
-
         // Get layer information
         std::string layerInfo = GetLayerInfo(gdbPath);
         rapidjson::Document document;

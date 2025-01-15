@@ -16,4 +16,3 @@ target_link_libraries(gdal_learn PRIVATE GDAL::GDAL)
 target_link_libraries(gdal_learn PRIVATE Crow::Crow)
 target_link_libraries(gdal_learn PRIVATE GEOS::geos GEOS::geos_c)
 target_link_libraries(gdal_learn PRIVATE rapidjson)
-
